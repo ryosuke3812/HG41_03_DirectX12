@@ -14,6 +14,7 @@ HRESULT SceneProcedural::Init()
 }
 void SceneProcedural::Uninit()
 {
+
 }
 void SceneProcedural::Draw()
 {
