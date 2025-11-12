@@ -1,9 +1,10 @@
+// SceneFractal.cpp の冒頭
 #include "SceneFractal.h"
 #include "Input.h"
 #include "MeshBuffer.h"
 #include <DirectXMath.h>
 
-const int MaxDepth = 1;
+const int MaxDepth = 3; // 1 から 3 や 4 に変更
 
 HRESULT SceneFractal::Init()
 {
@@ -212,18 +213,84 @@ void SceneFractal::Draw()
 * y - 再帰処理実行中の現在の参照座標Y
 * pIdx - 現在格納している定数バッファ配列の添え字
 */
+//void SceneFractal::CalcTriangle(int depth, float x, float y, int* pIdx)
+//{
+//	if (depth > 0)
+//	{
+//		// 穴あけ後の三角形の中心位置までの距離を計算
+//		// 再帰の度合いに応じて移動距離が変化するので、MaxDepthやdepthを組み合わせて移動距離を計算
+//		// 1回目の再帰処理は1/4,2回目の再帰処理は1/8,3回目の再帰処理は1/16…
+//		float dist = 0.5f * powf(0.5f, (MaxDepth - depth));
+//		CalcTriangle(depth - 1, x + 0.0f, y + dist, pIdx); // 上に移動
+//		CalcTriangle(depth - 1, x - dist, y - dist, pIdx); // 左下に移動
+//		CalcTriangle(depth - 1, x + dist, y - dist, pIdx); // 右下に移動
+//
+//	}
+//	else
+//	{
+//		// 描画に必要な行列を計算
+//		//float s = 描画する三角形の大きさをMaxDepthを使用して計算（MaxDepth = 1なら1 / 2, MaxDepth = 2なら1 / 4…）;
+//		float s = 1.0f * powf(0.5f, MaxDepth);
+//		DirectX::XMMATRIX W = DirectX::XMMatrixScaling(s, s, 1.0f) * DirectX::XMMatrixTranslation(x, y, 0.0f);
+//		DirectX::XMMATRIX V = DirectX::XMMatrixLookAtLH(
+//			DirectX::XMVectorSet(0.0f, 0.0f, -2.0f, 1.0f),
+//			DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
+//			DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
+//		//DirectX::XMMATRIX P = プロジェクション行列;
+//		DirectX::XMMATRIX P = DirectX::XMMatrixPerspectiveFovLH(
+//			DirectX::XMConvertToRadians(60.0f),
+//			1280.0f / 720.0f,
+//			0.1f,
+//			100.0f);
+//
+//		// 書き込み用のデータを計算
+//		DirectX::XMFLOAT4X4 fMat;
+//		DirectX::XMStoreFloat4x4(&fMat, DirectX::XMMatrixTranspose(W * V * P));
+//		// 定数バッファへ適宜書き込み
+//		m_pWVP[*pIdx]->Write(&fMat);
+//		*pIdx = (*pIdx) + 1;
+//
+//	}
+//}
+
+/*
+* depth - 再帰処理の現在の深さ
+* x - 再帰処理実行中の現在の参照座標X
+* y - 再帰処理実行中の現在の参照座標Y
+* pIdx - 現在格納している定数バッファ配列の添え字
+*/
 void SceneFractal::CalcTriangle(int depth, float x, float y, int* pIdx)
 {
 	if (depth > 0)
 	{
 		// 穴あけ後の三角形の中心位置までの距離を計算
-		// 再帰の度合いに応じて移動距離が変化するので、MaxDepthやdepthを組み合わせて移動距離を計算
-		// 1回目の再帰処理は1/4,2回目の再帰処理は1/8,3回目の再帰処理は1/16…
-		float dist = 0.5f * powf(0.5f, (MaxDepth - depth));
-		CalcTriangle(depth - 1, x + 0.0f, y + dist, pIdx); // 上に移動
-		CalcTriangle(depth - 1, x - dist, y - dist, pIdx); // 左下に移動
-		CalcTriangle(depth - 1, x + dist, y - dist, pIdx); // 右下に移動
+		// 再帰の度合い（現在のスケール）を計算
+		float currentScale = powf(0.5f, (MaxDepth - depth));
 
+		// 3つの子の三角形の中心座標を計算する
+		// 元の三角形の頂点バッファの形状 ((-0.5, -0.5), (0.5, -0.5), (0.0, 0.5)) に基づく
+
+		// 1. 上の子三角形 (Top)
+		// Y座標が (0.5 + 0.0) / 2 = 0.25 の位置
+		float top_x = x + 0.0f;
+		float top_y = y + (0.25f * currentScale);
+
+		// 2. 左下の子三角形 (Bottom-Left)
+		// X座標が (-0.5 + 0.0) / 2 = -0.25
+		// Y座標が (-0.5 + 0.0) / 2 = -0.25
+		float bl_x = x - (0.25f * currentScale);
+		float bl_y = y - (0.25f * currentScale);
+
+		// 3. 右下の子三角形 (Bottom-Right)
+		// X座標が (0.5 + 0.0) / 2 = 0.25
+		// Y座標が (-0.5 + 0.0) / 2 = -0.25
+		float br_x = x + (0.25f * currentScale);
+		float br_y = y - (0.25f * currentScale);
+
+
+		CalcTriangle(depth - 1, top_x, top_y, pIdx); // 上に移動
+		CalcTriangle(depth - 1, bl_x, bl_y, pIdx); // 左下に移動
+		CalcTriangle(depth - 1, br_x, br_y, pIdx); // 右下に移動
 	}
 	else
 	{
@@ -248,7 +315,6 @@ void SceneFractal::CalcTriangle(int depth, float x, float y, int* pIdx)
 		// 定数バッファへ適宜書き込み
 		m_pWVP[*pIdx]->Write(&fMat);
 		*pIdx = (*pIdx) + 1;
-
 	}
 }
 
@@ -258,10 +324,16 @@ void SceneFractal::CalcCube(int depth, float x, float y, float z, int* pIdx)
 	{
 		// 穴あけ後の四角形の中心位置までの距離を計算
 		// 3x3x3に分割した立方体のうち、表示が必要な箇所を1に変更する
+		//int idx[] = {
+		//0,0,0, 0,0,0, 0,0,0, // 上段
+		//0,0,0, 0,0,0, 0,0,0, // 中段
+		//0,0,0, 0,0,0, 0,0,0, // 下段
+		//};
+
 		int idx[] = {
-		0,0,0, 0,0,0, 0,0,0, // 上段
-		0,0,0, 0,0,0, 0,0,0, // 中段
-		0,0,0, 0,0,0, 0,0,0, // 下段
+			1, 1, 1,   1, 0, 1,   1, 1, 1, // 下段 (Z = -1)
+			1, 0, 1,   0, 0, 0,   1, 0, 1, // 中段 (Z =  0)
+			1, 1, 1,   1, 0, 1,   1, 1, 1, // 上段 (Z = +1)
 		};
 
 		// 再帰の度合いに応じて移動距離が変化するので、MaxDepthやdepthを組み合わせて移動距離を計算
@@ -271,9 +343,9 @@ void SceneFractal::CalcCube(int depth, float x, float y, float z, int* pIdx)
 		{
 			if (!idx[i]) { continue; }
 			CalcCube(depth - 1,
-				((i % 3) - 1) * dist + x, // iからX座標を計算
-				((i % 9) / 3 - 1) * dist + y, // iからY座標を計算
-				(i / 9 - 1) * dist + z, // iからZ座標を計算
+				((i % 3) - 1) * dist + x,		// iからX座標を計算
+				((i % 9) / 3 - 1) * dist + y,	// iからY座標を計算
+				(i / 9 - 1) * dist + z,			// iからZ座標を計算
 				pIdx);
 		}
 	}
