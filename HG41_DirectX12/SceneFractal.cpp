@@ -4,7 +4,7 @@
 #include "MeshBuffer.h"
 #include <DirectXMath.h>
 
-const int MaxDepth = 3; // 1 ‚©‚ç 3 ‚â 4 ‚É•ÏX
+const int MaxDepth = 2; // 1 ‚©‚ç 3 ‚â 4 ‚É•ÏX
 
 HRESULT SceneFractal::Init()
 {
