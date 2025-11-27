@@ -8,6 +8,7 @@
 #include "Pipeline.h"
 #include "DepthStencil.h"
 #include <vector>
+#include <DirectXMath.h>
 
 class SceneFractal
 {
@@ -30,6 +31,11 @@ private:
 	Pipeline* m_pPipeline;
 	DepthStencil* m_pDSV;
 	float m_rad;
+
+	DirectX::XMFLOAT3 m_triPos;
+	float m_triAngle;
+	DirectX::XMFLOAT3 m_cubePos;
+	float m_cubeAngle;
 };
 
 #endif // __SCENE_FRACTAL_H__

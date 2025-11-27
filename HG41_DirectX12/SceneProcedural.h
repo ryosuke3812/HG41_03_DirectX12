@@ -17,6 +17,17 @@ public:
 	void Draw();
 
 private:
+	float m_time;
+	float m_rad;
+	bool m_isRotate;
+	MeshBuffer* m_pSquare;
+	MeshBuffer* m_pCube;
+	DescriptorHeap* m_pShaderHeap;
+	DescriptorHeap* m_pDSVHeap;
+	std::vector<ConstantBuffer*> m_pWVP;
+	RootSignature* m_pRootSignature;
+	std::vector<Pipeline*> m_pPipeline;
+	DepthStencil* m_pDSV;
 };
 
 #endif // __SCENE_PROCEDURAL_H__

@@ -16,10 +16,10 @@ static Pipeline*        s_pPipeline = nullptr;
 HRESULT SceneLSystem::Init()
 {
 	// 頂点座標（L-Systemの結果を格納する一時）
-	struct GenVertex {
+	struct Vertex {
 		float x, y, z;
 	};
-	std::vector<GenVertex> genVtx;
+	std::vector<Vertex> vtx;
 
 	// スタック情報
 	struct Param {
@@ -32,18 +32,18 @@ HRESULT SceneLSystem::Init()
 
 	//--- LSystemの作成（文字に対する動作はスタックを引数で渡す）
 	// 移動処理の定義
-	auto moveFunc = [&genVtx](void* arg)
+	auto moveFunc = [&vtx](void* arg)
 		{
 			std::stack<Param>* pStack = reinterpret_cast<std::stack<Param>*>(arg);
 			Param& top = pStack->top();
 			// 始点
-			genVtx.push_back({ top.pos.x, top.pos.y, top.pos.z });
+			vtx.push_back({ top.pos.x, top.pos.y, top.pos.z });
 			// 進む
 			top.pos.x += top.vec.x;
 			top.pos.y += top.vec.y;
 			top.pos.z += top.vec.z;
 			// 終点
-			genVtx.push_back({ top.pos.x, top.pos.y, top.pos.z });
+			vtx.push_back({ top.pos.x, top.pos.y, top.pos.z });
 		};
 	// スタック処理の定義
 	auto pushFunc = [](void* arg)
@@ -57,7 +57,35 @@ HRESULT SceneLSystem::Init()
 			pStack->pop();
 		};
 
-	// +,- の回転はコメント化された例を参照しており、今回の実装では簡易処理として使わない（必要なら追加可能）
+	// 他のルールを参考に+,-の回転処理ルールを実装
+	// 厳密な回転でなくてもスタック中の進行方向を（うまいこと）変えるだけでもそれっぽくなる
+	// 回転角度（例: 25度）
+	const float kAngle = DirectX::XMConvertToRadians(10.0f);
+
+	// + (時計回り) の回転
+	auto rotPlusFunc = [=](void* arg)
+		{
+			std::stack<Param>* pStack = reinterpret_cast<std::stack<Param>*>(arg);
+			Param& top = pStack->top();
+
+			DirectX::XMMATRIX R = DirectX::XMMatrixRotationZ(-kAngle); // -25度
+			DirectX::XMVECTOR vec = DirectX::XMLoadFloat3(&top.vec);
+			vec = DirectX::XMVector3Transform(vec, R);
+			DirectX::XMStoreFloat3(&top.vec, vec);
+		};
+
+	// - (反時計回り) の回転
+	auto rotMinusFunc = [=](void* arg)
+		{
+			std::stack<Param>* pStack = reinterpret_cast<std::stack<Param>*>(arg);
+			Param& top = pStack->top();
+
+			DirectX::XMMATRIX R = DirectX::XMMatrixRotationZ(kAngle); // +25度
+			DirectX::XMVECTOR vec = DirectX::XMLoadFloat3(&top.vec);
+			vec = DirectX::XMVector3Transform(vec, R);
+			DirectX::XMStoreFloat3(&top.vec, vec);
+		};
+
 	SceneLSystem lsystem;
 	// ルール追加
 	lsystem.AddRule('F', "X[+F][-F]");
@@ -66,54 +94,39 @@ HRESULT SceneLSystem::Init()
 	lsystem.AddBehavior('X', moveFunc);
 	lsystem.AddBehavior('[', pushFunc);
 	lsystem.AddBehavior(']', popFunc);
+	// +,-の回転処理ルールを実装
+	lsystem.AddBehavior('+', rotPlusFunc);
+	lsystem.AddBehavior('-', rotMinusFunc);
 
 	// 構築済みのルール、処理に基づいてLSystem内で頂点データを生成
 	lsystem.Execute(6, "F", &stack);
 
-	// 生成頂点を MeshBuffer に渡すために頂点フォーマットを作成
-	// 他のシーンに合わせて位置＋色のフォーマットを使用する（シェーダは VS_FractalObject.cso / PS_FractalObject.cso を流用）
-	struct Vertex {
-		float pos[3];
-		float color[4];
-	};
-	std::vector<Vertex> vtx;
-	vtx.reserve(genVtx.size());
-	for (size_t i = 0; i < genVtx.size(); ++i) {
-		float gray = 1.0f; // 線の色（必要なら階層や深さに応じて変える）
-		vtx.push_back({ { genVtx[i].x, genVtx[i].y, genVtx[i].z }, { gray, gray, gray, 1.0f } });
+	// 頂点バッファの生成
+	{
+		MeshBuffer::Description desc = {};
+		desc.pVtx = vtx.data();
+		desc.vtxSize = sizeof(Vertex);
+		desc.vtxCount = vtx.size();
+		desc.topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
+		m_pTree = new MeshBuffer(desc);
 	}
 
-	// MeshBuffer 作成（LINELIST：各2点で1本の線）
-	if (!vtx.empty()) {
-		MeshBuffer::Description mdesc = {};
-		mdesc.pVtx = vtx.data();
-		mdesc.vtxSize = sizeof(Vertex);
-		mdesc.vtxCount = (UINT)vtx.size();
-		mdesc.pIdx = nullptr;
-		mdesc.topology = D3D_PRIMITIVE_TOPOLOGY_LINELIST;
-		// 既に作られていれば破棄してから作り直す
-		if (s_pLineMesh) { delete s_pLineMesh; s_pLineMesh = nullptr; }
-		s_pLineMesh = new MeshBuffer(mdesc);
-	}
-
-	// 以下は描画に必要なシェーダ／ルートシグネチャ等を作成（SceneFractal と同様の設定）
-	// オブジェクト用ディスクリプターヒープ作成（定数バッファ1つ）
+	// オブジェクト用ディスクリプターヒープ作成
 	{
 		DescriptorHeap::Description desc = {};
 		desc.heapType = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		desc.num = 1;
-		if (s_pShaderHeap) { delete s_pShaderHeap; s_pShaderHeap = nullptr; }
-		s_pShaderHeap = new DescriptorHeap(desc);
+		m_pShaderHeap = new DescriptorHeap(desc);
 	}
-	// 定数バッファ作成（WVP）
+	// オブジェクト用の定数バッファ作成
 	{
 		ConstantBuffer::Description desc = {};
-		desc.pHeap = s_pShaderHeap;
-		desc.size = sizeof(DirectX::XMFLOAT4X4);
-		if (s_pWVP) { delete s_pWVP; s_pWVP = nullptr; }
-		s_pWVP = new ConstantBuffer(desc);
+		desc.pHeap = m_pShaderHeap;
+		desc.size = sizeof(DirectX::XMFLOAT4X4) * 3;
+		m_pWVP = new ConstantBuffer(desc);
 	}
-	// ルートシグネチャ（VS側で b0: CBV を使用）
+
+	// ルートシグネチャ生成
 	{
 		RootSignature::Parameter param[] = {
 			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_VERTEX},
@@ -121,49 +134,64 @@ HRESULT SceneLSystem::Init()
 		RootSignature::Description desc = {};
 		desc.pParam = param;
 		desc.paramNum = _countof(param);
-		if (s_pRootSignature) { delete s_pRootSignature; s_pRootSignature = nullptr; }
-		s_pRootSignature = new RootSignature(desc);
+		m_pRootSignature = new RootSignature(desc);
 	}
-	// パイプライン作成（頂点属性は POSITION, COLOR）
+	// パイプライン生成
 	{
 		Pipeline::InputLayout layout[] = {
 			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT},
-			{"COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT},
+			{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT},
+			{"UV", 0, DXGI_FORMAT_R32G32_FLOAT},
 		};
 		Pipeline::Description desc = {};
 		desc.pInputLayout = layout;
 		desc.InputLayoutNum = _countof(layout);
-		desc.VSFile = L"VS_FractalObject.cso";
-		desc.PSFile = L"PS_FractalObject.cso";
-		desc.pRootSignature = s_pRootSignature->Get();
+		desc.VSFile = L"VS_LSystem.cso";
+		desc.PSFile = L"PS_LSystem.cso";
+		desc.pRootSignature = m_pRootSignature->Get();
 		desc.RenderTargetNum = 1;
-		desc.EnableDepth = false; // 線描画なので深度無効
-		if (s_pPipeline) { delete s_pPipeline; s_pPipeline = nullptr; }
-		s_pPipeline = new Pipeline(desc);
+		desc.EnableDepth = true;
+		m_pPipeline = new Pipeline(desc);
+	}
+
+	// 深度バッファ用のディスクリプター作成
+	{
+		DescriptorHeap::Description desc = {};
+		desc.heapType = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+		desc.num = 1;
+		m_pDSVHeap = new DescriptorHeap(desc);
+	}
+	// 深度バッファ作成
+	{
+		DepthStencil::Description desc = {};
+		desc.width = 1280;
+		desc.height = 720;
+		desc.pDSVHeap = m_pDSVHeap;
+		m_pDSV = new DepthStencil(desc);
 	}
 
 	return S_OK;
 }
 void SceneLSystem::Uninit()
 {
-	// 作成したリソースを破棄
-	if (s_pLineMesh) { delete s_pLineMesh; s_pLineMesh = nullptr; }
-	if (s_pPipeline) { delete s_pPipeline; s_pPipeline = nullptr; }
-	if (s_pRootSignature) { delete s_pRootSignature; s_pRootSignature = nullptr; }
-	if (s_pWVP) { delete s_pWVP; s_pWVP = nullptr; }
-	if (s_pShaderHeap) { delete s_pShaderHeap; s_pShaderHeap = nullptr; }
+	delete m_pDSV;
+	delete m_pPipeline;
+	delete m_pRootSignature;
+	delete m_pWVP;
+	delete m_pDSVHeap;
+	delete m_pShaderHeap;
+	delete m_pTree;
 }
 
 void SceneLSystem::Draw()
 {
-	// 必要なリソースがなければ何もしない
-	if (!s_pLineMesh || !s_pPipeline || !s_pRootSignature || !s_pWVP || !s_pShaderHeap)
-		return;
-
-	// 描画先の設定
 	ID3D12GraphicsCommandList* pCmdList = GetCommandList();
+
+	// レンダーターゲット設定
 	D3D12_CPU_DESCRIPTOR_HANDLE hRTV[] = { GetRTV() };
-	SetRenderTarget(_countof(hRTV), hRTV, D3D12_CPU_DESCRIPTOR_HANDLE{ 0 });
+	D3D12_CPU_DESCRIPTOR_HANDLE hDSV = m_pDSV->GetHandleDSV().hCPU;
+	SetRenderTarget(_countof(hRTV), hRTV, hDSV);
+	m_pDSV->Clear();
 
 	// 表示領域の設定
 	float width = 1280.0f;
@@ -173,32 +201,46 @@ void SceneLSystem::Draw()
 	pCmdList->RSSetViewports(1, &vp);
 	pCmdList->RSSetScissorRects(1, &scissor);
 
-	// 定数バッファ（WVP）を書き込む
-	// ワールドは単位行列、ビューは少し後方から見下ろす簡易カメラ、投影は透視投影
-	DirectX::XMMATRIX W = DirectX::XMMatrixIdentity();
-	DirectX::XMMATRIX V = DirectX::XMMatrixLookAtLH(
-		DirectX::XMVectorSet(0.0f, 0.0f, -2.0f, 1.0f),
-		DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
-		DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f));
-	DirectX::XMMATRIX P = DirectX::XMMatrixPerspectiveFovLH(
-		DirectX::XMConvertToRadians(60.0f),
-		width / height,
-		0.1f,
-		100.0f);
-	DirectX::XMFLOAT4X4 fMat;
-	DirectX::XMStoreFloat4x4(&fMat, DirectX::XMMatrixTranspose(W * V * P));
-	s_pWVP->Write(&fMat);
+	// パイプライン、ヒープ設定
+	m_pPipeline->Bind();
+	m_pShaderHeap->Bind();
 
-	// パイプライン、ヒープの設定
-	s_pPipeline->Bind();
-	s_pShaderHeap->Bind();
+	// 変換行列の計算
+	DirectX::XMMATRIX mat[3];
+	static float rad = 0.0f;
+	mat[0] = DirectX::XMMatrixIdentity();
+	mat[1] = DirectX::XMMatrixLookAtLH(
+		DirectX::XMVectorSet(cosf(rad) * 30.0f, 30.0f, sinf(rad) * 30.0f, 0.0),
+		DirectX::XMVectorSet(0.0f, 10.0f, 0.0f, 0.0),
+		DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0)
+	);
+	mat[2] = DirectX::XMMatrixPerspectiveFovLH(
+		DirectX::XMConvertToRadians(60.0f), 16.f / 9.f, 0.1f, 100.0f
+	);
+	rad += 0.003f;
 
-	// 定数バッファハンドルをルートシグネチャへバインドして描画
-	D3D12_GPU_DESCRIPTOR_HANDLE handle = s_pWVP->GetHandle().hGPU;
-	s_pRootSignature->Bind(&handle, 1);
+	// 定数バッファへ設定
+	DirectX::XMFLOAT4X4 fMat[3];
+	for (int i = 0; i < 3; ++i)
+		DirectX::XMStoreFloat4x4(&fMat[i], DirectX::XMMatrixTranspose(mat[i]));
+	m_pWVP->Write(&fMat);
 
-	// メッシュを描画（MeshBuffer が VA/VB をセットして Draw を呼ぶ）
-	s_pLineMesh->Draw();
+	// 描画
+	D3D12_GPU_DESCRIPTOR_HANDLE handle[] = {
+		m_pWVP->GetHandle().hGPU
+	};
+	m_pRootSignature->Bind(handle, 1);
+	m_pTree->Draw();
+}
+
+void SceneLSystem::AddRule(char key, const char* str)
+{
+	m_rule.insert(std::pair<char, std::string>(key, str));
+}
+
+void SceneLSystem::AddBehavior(char key, std::function<void(void*)> func)
+{
+	m_behavior.insert(std::pair<char, std::function<void(void*)>>(key, func));
 }
 
 void SceneLSystem::Execute(int iteration, const char* initValue, void* arg)

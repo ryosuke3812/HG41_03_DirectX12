@@ -16,6 +16,12 @@
     <Filter Include="imgui">
       <UniqueIdentifier>{de7c56e8-33dc-419f-91f4-1b4869755166}</UniqueIdentifier>
     </Filter>
+    <Filter Include="リソース ファイル\Fractal">
+      <UniqueIdentifier>{47ddb47f-c586-477c-92df-3447da6b9dee}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="リソース ファイル\Procedural">
+      <UniqueIdentifier>{ff57178f-5b92-4c59-b66f-9446568331f2}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Startup.cpp">
@@ -169,14 +175,50 @@
     <FxCompile Include="PS_TexColor.hlsl">
       <Filter>リソース ファイル</Filter>
     </FxCompile>
-    <FxCompile Include="VS_FractalObject.hlsl">
-      <Filter>リソース ファイル</Filter>
-    </FxCompile>
     <FxCompile Include="VS_Sprite.hlsl">
       <Filter>リソース ファイル</Filter>
     </FxCompile>
-    <FxCompile Include="PS_FractalObject.hlsl">
-      <Filter>リソース ファイル</Filter>
+    <FxCompile Include="VS_FractalObject.hlsl">
+      <Filter>リソース ファイル\Fractal</Filter>
     </FxCompile>
+    <FxCompile Include="PS_FractalObject.hlsl">
+      <Filter>リソース ファイル\Fractal</Filter>
+    </FxCompile>
+    <FxCompile Include="PS_LSystem.hlsl">
+      <Filter>リソース ファイル\Fractal</Filter>
+    </FxCompile>
+    <FxCompile Include="VS_LSystem.hlsl">
+      <Filter>リソース ファイル\Fractal</Filter>
+    </FxCompile>
+    <FxCompile Include="PS_WhiteNoise.hlsl">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </FxCompile>
+    <FxCompile Include="PS_Procedural.hlsl">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </FxCompile>
+    <FxCompile Include="VS_Procedural.hlsl">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </FxCompile>
+    <FxCompile Include="PS_BlockNoise.hlsl">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </FxCompile>
+    <FxCompile Include="PS_CellularNoise.hlsl" />
+    <FxCompile Include="PS_ValueNoise.hlsl">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </FxCompile>
+    <FxCompile Include="PS_PerlinNoise.hlsl">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </FxCompile>
+    <FxCompile Include="PS_NoiseFire.hlsl">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </FxCompile>
+    <FxCompile Include="PS_fBM.hlsl">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </FxCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Noise.hlsli">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </None>
   </ItemGroup>
 </Project>

@@ -8,34 +8,32 @@
 #include "Pipeline.h"
 #include "DepthStencil.h"
 #include <functional>
-#include <stack>
-#include <string>
-#include "DirectXMath.h"
 #include <map>
+#include <string>
 
-
-
-class SceneLSystem {
+class SceneLSystem
+{
 public:
-	SceneLSystem() {}
-	~SceneLSystem() {}
-	
 	HRESULT Init();
 	void Uninit();
 	void Draw();
 
-	void Execute(int iteration, const char* initValue, void* arg = nullptr);
-	// •ÏŠ·ƒ‹[ƒ‹‚Ì’Ç‰Á
-	void AddRule(char key, const char* str) {
-		m_rule.insert(std::pair<char, std::string>(key, str));
-	}
+	void AddRule(char key, const char* str);
 	// Àsˆ—‚Ì’Ç‰Á
-	void AddBehavior(char key, std::function<void(void*)> func) {
-		m_behavior.insert(std::pair<char, std::function<void(void*)>>(key, func));
-	}
+	void AddBehavior(char key, std::function<void(void*)> func);
+	void Execute(int iteration, const char* initValue, void* arg);
+
 private:
-	std::map<char, std::string> m_rule; // •ÏŠ·ƒ‹[ƒ‹
-	std::map<char, std::function<void(void*)>> m_behavior; // •¶š‚²‚Æ‚Ì“®ì
+	MeshBuffer* m_pTree;
+	DescriptorHeap* m_pShaderHeap;
+	DescriptorHeap* m_pDSVHeap;
+	ConstantBuffer* m_pWVP;
+	RootSignature* m_pRootSignature;
+	Pipeline* m_pPipeline;
+	DepthStencil* m_pDSV;
+
+	std::map<char, std::string> m_rule;
+	std::map<char, std::function<void(void*)>> m_behavior;
 };
 
 #endif // __SCENE_LSYSTEM_H__

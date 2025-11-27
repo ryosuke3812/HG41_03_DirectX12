@@ -4,7 +4,10 @@
 #include "MeshBuffer.h"
 #include <DirectXMath.h>
 
-const int MaxDepth = 2; // 1 から 3 や 4 に変更
+const int MaxDepth = 3; // 1 から 3 や 4 に変更
+
+const DirectX::XMFLOAT3 TriOffset = { -1.0f, 0.0f, 0.0f };
+const DirectX::XMFLOAT3 CubeOffset = { 1.0f, 0.0f, 0.0f };
 
 HRESULT SceneFractal::Init()
 {
@@ -297,7 +300,7 @@ void SceneFractal::CalcTriangle(int depth, float x, float y, int* pIdx)
 		// 描画に必要な行列を計算
 		//float s = 描画する三角形の大きさをMaxDepthを使用して計算（MaxDepth = 1なら1 / 2, MaxDepth = 2なら1 / 4…）;
 		float s = 1.0f * powf(0.5f, MaxDepth);
-		DirectX::XMMATRIX W = DirectX::XMMatrixScaling(s, s, 1.0f) * DirectX::XMMatrixTranslation(x, y, 0.0f);
+		DirectX::XMMATRIX W = DirectX::XMMatrixScaling(s, s, 1.0f) * DirectX::XMMatrixTranslation(x + TriOffset.x, y, 0.0f);
 		DirectX::XMMATRIX V = DirectX::XMMatrixLookAtLH(
 			DirectX::XMVectorSet(0.0f, 0.0f, -2.0f, 1.0f),
 			DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
@@ -338,7 +341,8 @@ void SceneFractal::CalcCube(int depth, float x, float y, float z, int* pIdx)
 
 		// 再帰の度合いに応じて移動距離が変化するので、MaxDepthやdepthを組み合わせて移動距離を計算
 		// 1回目の再帰処理は1/3,2回目の再帰処理は1/9,3回目の再帰処理は1/27…
-		float dist = 1.0f * powf(1.0f / 3.0f, (MaxDepth - depth));
+		//float dist = 1.0f * powf(1.0f / 3.0f, (MaxDepth - depth));
+		float dist = powf(1.0f / 3.0f, (MaxDepth - depth + 1));
 		for (int i = 0; i < _countof(idx); ++i)
 		{
 			if (!idx[i]) { continue; }
@@ -354,10 +358,13 @@ void SceneFractal::CalcCube(int depth, float x, float y, float z, int* pIdx)
 		// 描画に必要な行列を計算
 		//float s = 描画する四角形の大きさをMaxDepthを使用して計算（MaxDepth = 1なら1 / 3, MaxDepth = 2なら1 / 9…）;
 		float s = 1.0f * powf(1.0f / 3.0f, MaxDepth);
+		float radOffsetX = cosf(m_rad) * 0.5f;
+		float radOffsetZ = sinf(m_rad) * 0.5f;
 		DirectX::XMMATRIX W =
 			DirectX::XMMatrixScaling(s, s, s) *
+			DirectX::XMMatrixTranslation(x, y, z) *
 			DirectX::XMMatrixRotationY(m_rad) *
-			DirectX::XMMatrixTranslation(x, y, z);
+			DirectX::XMMatrixTranslation(CubeOffset.x, CubeOffset.y, CubeOffset.z);
 		DirectX::XMMATRIX V = DirectX::XMMatrixLookAtLH(
 			DirectX::XMVectorSet(0.0f, 0.0f, -5.0f, 1.0f),
 			DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f),
