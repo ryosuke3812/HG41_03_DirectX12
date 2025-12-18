@@ -8,6 +8,12 @@ float Random(float2 vec)
     ) * 43758.5453123f);
 }
 
+float Random_(float2 vec)
+{
+    vec = frac(vec * 0.1031f) + dot(vec, vec.yx + 33.33f);
+    return frac((vec.x + vec.y) * vec.x);
+}
+
 // float2からfloat2を生成
 float2 Random2(float2 vec)
 {
@@ -71,6 +77,26 @@ float PerlinNoise(float2 vec)
 
 // fBM
 float fBM(float2 vec, int octaves)
+{
+    const float lacunarity = 2.0f;  // 解像度の変化割合
+    const float gain = 0.5f;    // 重ね合わせの変化割合
+    
+    float amplitude = 0.5f; // 重ね合わせの強さs
+    float frequency = 1.0f; // 解像度
+    
+    float n = 0.0f; // ノイズ値の合計
+    for (int i = 0;i < octaves; ++i)
+    {
+        n += PerlinNoise(vec * frequency) * amplitude;
+        frequency *= lacunarity;
+        amplitude *= gain;
+    }
+    
+    return n;
+}
+
+// fBM_Turbulence
+float fBM_Turbulence(float2 vec, int octaves)
 {
     const float lacunarity = 2.0f;  // 解像度の変化割合
     const float gain = 0.5f;    // 重ね合わせの変化割合

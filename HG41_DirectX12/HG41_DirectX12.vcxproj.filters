@@ -215,6 +215,16 @@
     <FxCompile Include="PS_fBM.hlsl">
       <Filter>リソース ファイル\Procedural</Filter>
     </FxCompile>
+    <FxCompile Include="VS_HeightMap.hlsl">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </FxCompile>
+    <FxCompile Include="PS_HeightMap.hlsl">
+      <Filter>リソース ファイル\Procedural</Filter>
+    </FxCompile>
+    <FxCompile Include="PS_Water.hlsl" />
+    <FxCompile Include="VS_Water.hlsl" />
+    <FxCompile Include="VS_Ground.hlsl" />
+    <FxCompile Include="PS_Ground.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Noise.hlsli">

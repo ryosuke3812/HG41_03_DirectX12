@@ -17,6 +17,16 @@ public:
 	void Draw();
 
 private:
+	MeshBuffer* m_pPlane;
+	MeshBuffer* m_pSphere;
+	DescriptorHeap* m_pShaderHeap;
+	DescriptorHeap* m_pDSVHeap;
+	std::vector<ConstantBuffer*> m_pWVPs;
+	std::vector<Pipeline*> m_pPipelines;
+	DepthStencil* m_pDSV;
+
+	RootSignature* m_pGroundRS;
+	RootSignature* m_pWaterRS;
 };
 
-#endif // __SCENE_PROCEDURAL_H__
+#endif // __SCENE_FIELD_H__

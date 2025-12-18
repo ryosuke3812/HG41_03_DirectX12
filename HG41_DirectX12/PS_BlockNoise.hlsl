@@ -12,7 +12,7 @@ float4 main(PS_IN pin) : SV_TARGET
 {
     float4 color = float4(1.0f, 1.0f, 1.0f, 1.0f);
     // floor - ¬”‚ğØ‚èÌ‚Ä‚éŠÖ”
-    color.rgb = Random(floor(pin.uv * 10.0f));
+    color.rgb = Random_(floor(pin.uv * 10.0f));
 
     return color;
 }

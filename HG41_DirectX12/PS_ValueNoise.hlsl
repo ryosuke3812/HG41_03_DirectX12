@@ -18,20 +18,23 @@ float4 main(PS_IN pin) : SV_TARGET
     float2 i_uv = floor(uv); // 拡大したUVの整数部分
     float2 f_uv = frac(uv); // 拡大したUVの小数部分
     
+    f_uv = f_uv * f_uv * (3.0f - 2.0f * f_uv);
+    
+    
     // 4個のランダムな値を取得
     float2 offset[] =
     {
         { 0.0f, 0.0f }, // 左上
-        { 1.0f, 0.0f }, // 左下
-        { 0.0f, 1.0f }, // 右上
+        { 1.0f, 0.0f }, // 右上
+        { 0.0f, 1.0f }, // 左下
         { 1.0f, 1.0f }  // 右下
     };
     
     float lt, rt, lb, rb; // 左上(LeftTop)、右上、左下、右下
-    lt = Random(i_uv + offset[0]);
-    rt = Random(i_uv + offset[1]);
-    lb = Random(i_uv + offset[2]);
-    rb = Random(i_uv + offset[3]);
+    lt = Random_(i_uv + offset[0]);
+    rt = Random_(i_uv + offset[1]);
+    lb = Random_(i_uv + offset[2]);
+    rb = Random_(i_uv + offset[3]);
     
     // UVの値に基づいてランダムな値を補間
     float top       = lerp(lt, rt, f_uv.x);         // 上辺

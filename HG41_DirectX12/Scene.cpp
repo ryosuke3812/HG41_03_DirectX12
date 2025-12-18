@@ -15,7 +15,7 @@ enum Scenes {
 
 	START = FRACTAL
 };
-int g_scene = FRACTAL;
+int g_scene = PROCEDURAL;
 
 SceneFractal g_fractal;
 SceneLSystem g_lsystem;
