@@ -36,7 +36,7 @@ float4 main(PS_IN pin) : SV_TARGET
     
     float dotNL = saturate(dot(N, L));
     
-    float f0 = 0.02f;
+    float f0 = 0.7f;
     float fresnel = f0 + (1.0f - f0) * pow(1.0f - dotNL, 5.0f);
     
     color.a = fresnel;

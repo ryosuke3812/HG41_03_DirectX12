@@ -12,5 +12,8 @@ float4 main(PS_IN pin) : SV_TARGET
     float3 N = normalize(pin.normal);
     float d = saturate(dot(-L, N));
     
+    
+    
     return float4(d, d, d, 1.0f);
+    //return float4(pin.uv, d, 1.0f);
 }

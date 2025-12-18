@@ -251,6 +251,6 @@ void SceneField::Draw()
 		m_pWVPs[0]->GetHandle().hGPU,
 		m_pWVPs[1]->GetHandle().hGPU
 	};
-	m_pWaterRS->Bind(hWater, 1);
+	m_pWaterRS->Bind(hWater, 2);
 	m_pPlane->Draw();
 }
