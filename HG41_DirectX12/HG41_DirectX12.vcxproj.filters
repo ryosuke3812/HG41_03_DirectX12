@@ -225,6 +225,9 @@
     <FxCompile Include="VS_Water.hlsl" />
     <FxCompile Include="VS_Ground.hlsl" />
     <FxCompile Include="PS_Ground.hlsl" />
+    <FxCompile Include="VertexShader.hlsl" />
+    <FxCompile Include="VS_Atomosphere.hlsl" />
+    <FxCompile Include="PS_Atomosphere.hlsl" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Noise.hlsli">

@@ -9,15 +9,21 @@
 const int MaxObjects = 2; // オブジェクト数
 const int MaxConstBufNum = 2; // 定数バッファ
 
+SceneField::SceneField()
+	: m_pPlane(nullptr),
+	  m_pShaderHeap(nullptr),
+	  m_pDSVHeap(nullptr),
+	  m_pDSV(nullptr),
+	  m_pGroundRS(nullptr),
+	  m_pWaterRS(nullptr)
+{
+	
+
+}
+
 HRESULT SceneField::Init()
 {
 	// ～～ 頂点データ作成 ～～
-	struct Vertex
-	{
-		float pos[3];
-		float normal[3];
-		float uv[2];
-	};
 	const float maxSize = 20.0f;
 	const int GridNum = 500;
 	const float planeSpace = maxSize / (GridNum - 1);
@@ -160,6 +166,25 @@ HRESULT SceneField::Init()
 		desc.VSFile = L"VS_Ground.cso";
 		desc.PSFile = L"PS_Ground.cso";
 		m_pPipelines[0] = new Pipeline(desc);
+
+		{ // 大気用のルートシグネチャ生成
+			RootSignature::Parameter param[] = {
+			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_VERTEX},
+			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_PIXEL},
+			};
+			RootSignature::Description desc = {};
+			desc.pParam = param;
+			desc.paramNum = _countof(param);
+			m_pSkyRS = new RootSignature(desc);
+		}
+
+		// 大気
+		desc.pRootSignature = m_pSkyRS->Get();
+		desc.VSFile = L"VS_Atomosphere.cso";
+		desc.PSFile = L"PS_Atomosphere.cso";
+		m_pPipelines[2] = new Pipeline(desc); // 地面、水面でパイプラインを作成しているため、
+		// 大気のインデックスは２
+
 		// 水面
 		desc.pRootSignature = m_pWaterRS->Get();
 		desc.VSFile = L"VS_Water.cso";
@@ -253,4 +278,21 @@ void SceneField::Draw()
 	};
 	m_pWaterRS->Bind(hWater, 2);
 	m_pPlane->Draw();
+
+	// スカイスフィアをカメラ位置に移動させる行列の計算
+	mat[0] = DirectX::XMMatrixTranslation(camPos.x, camPos.y, camPos.z);
+	DirectX::XMStoreFloat4x4(&fMat[0], DirectX::XMMatrixTranspose(mat[0]));
+	m_pWVPs[2]->Write(&fMat); // fMat[3]の配列のはず。1,2にはビューとプロジェクション行列格納済み
+	// 深度バッファをオフにして、一番最初に描画
+	SetRenderTarget(_countof(hRTV), hRTV);
+	// 描画
+	m_pPipelines[2]->Bind();
+	D3D12_GPU_DESCRIPTOR_HANDLE hSky[] = {
+	m_pWVPs[2]->GetHandle().hGPU,
+	m_pWVPs[1]->GetHandle().hGPU, // 水面で使用してる、時間とカメラの定数バッファ
+	};
+	m_pSkyRS->Bind(hSky, 2);
+	m_pSphere->Draw();
+	// 深度バッファを有効にして、地面と水面を描画
+	SetRenderTarget(_countof(hRTV), hRTV, hDSV);
 }
