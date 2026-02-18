@@ -6,51 +6,44 @@
 #include <vector>
 #include <DirectXMath.h>
 
-// ===== SceneField.cpp の冒頭部分 =====
-// ※こちらの定数も 2 から 3 に変更してください
 const int MaxObjects = 3; // オブジェクト数 (地面、水面、大気)
 const int MaxConstBufNum = 3; // 定数バッファ (地面・水面行列、パラメータ、大気行列)
 
+SceneField::SceneField()
+	: m_pPlane(nullptr),
+	m_pSphere(nullptr),
+	m_pShaderHeap(nullptr),
+	m_pDSVHeap(nullptr),
+	m_pDSV(nullptr),
+	m_pGroundRS(nullptr),
+	m_pWaterRS(nullptr),
+	m_pSkyRS(nullptr)
+{
+}
 
-// ===== Init関数全体 =====
 HRESULT SceneField::Init()
 {
 	// ==========================================
 	// 1. メッシュバッファの生成 (ジオメトリ)
 	// ==========================================
 
-	struct Vertex
-	{
-		float pos[3];
-		float normal[3];
-		float uv[2];
-	};
-
 	// ～～ 地面用頂点データ作成 ～～
 	const float maxSize = 20.0f;
 	const int GridNum = 500;
 	const float planeSpace = maxSize / (GridNum - 1);
-	// 頂点生成
 	std::vector<Vertex> planeVtx;
-	for (int j = 0; j < GridNum; ++j)
-	{
-		for (int i = 0; i < GridNum; ++i)
-		{
-			planeVtx.push_back(
-				{
-					{i * planeSpace - maxSize * 0.5f, 0.0f, j * planeSpace - maxSize * 0.5f},
-					{0.0f, 1.0f, 0.0f},
-					{ i / (GridNum - 1.0f), j / (GridNum - 1.0f) }
-				}
-			);
+	for (int j = 0; j < GridNum; ++j) {
+		for (int i = 0; i < GridNum; ++i) {
+			planeVtx.push_back({
+				{i * planeSpace - maxSize * 0.5f, 0.0f, j * planeSpace - maxSize * 0.5f},
+				{0.0f, 1.0f, 0.0f},
+				{ i / (GridNum - 1.0f), j / (GridNum - 1.0f) }
+				});
 		}
 	}
-	// インデックス生成
 	std::vector<DWORD> planeIdx;
-	for (int j = 0; j < GridNum - 1; ++j)
-	{
-		for (int i = 0; i < GridNum - 1; ++i)
-		{
+	for (int j = 0; j < GridNum - 1; ++j) {
+		for (int i = 0; i < GridNum - 1; ++i) {
 			planeIdx.push_back(GridNum * j + i);
 			planeIdx.push_back(GridNum * j + i + 1);
 			planeIdx.push_back(GridNum * (j + 1) + i);
@@ -59,8 +52,7 @@ HRESULT SceneField::Init()
 			planeIdx.push_back(GridNum * (j + 1) + i + 1);
 		}
 	}
-	// ～～～　構築後、頂点データに基づいて頂点バッファを生成　～～～
-	{	// 頂点バッファの生成
+	{
 		MeshBuffer::Description desc = {};
 		desc.pVtx = planeVtx.data();
 		desc.vtxSize = sizeof(Vertex);
@@ -71,7 +63,6 @@ HRESULT SceneField::Init()
 		desc.topology = D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST;
 		m_pPlane = new MeshBuffer(desc);
 	}
-
 
 	// ～～ スカイスフィア用頂点データ作成 ～～
 	const int SPHERE_HORIZONTAL = 17;
@@ -90,7 +81,6 @@ HRESULT SceneField::Init()
 			  {i / (SPHERE_HORIZONTAL - 1.0f), j / (SPHERE_VERTICAL - 1.0f)} });
 		}
 	}
-	// インデックス
 	std::vector<unsigned long> sphereIdx;
 	for (int j = 0; j < SPHERE_VERTICAL - 1; ++j) {
 		for (int i = 0; i < SPHERE_HORIZONTAL - 1; ++i) {
@@ -102,7 +92,7 @@ HRESULT SceneField::Init()
 			sphereIdx.push_back((j + 1) * SPHERE_HORIZONTAL + i);
 		}
 	}
-	{	// 頂点バッファの生成
+	{
 		MeshBuffer::Description desc = {};
 		desc.pVtx = sphereVtx.data();
 		desc.vtxCount = sphereVtx.size();
@@ -114,17 +104,16 @@ HRESULT SceneField::Init()
 		m_pSphere = new MeshBuffer(desc);
 	}
 
-
 	// ==========================================
 	// 2. ディスクリプタヒープと定数バッファの生成
 	// ==========================================
-	{	// オブジェクト用ディスクリプターヒープ作成
+	{
 		DescriptorHeap::Description desc = {};
 		desc.heapType = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		desc.num = MaxConstBufNum;
 		m_pShaderHeap = new DescriptorHeap(desc);
 	}
-	{	// オブジェクト用の定数バッファ作成 (push_backを使用して安全に追加)
+	{
 		ConstantBuffer::Description desc = {};
 		desc.pHeap = m_pShaderHeap;
 
@@ -132,20 +121,19 @@ HRESULT SceneField::Init()
 		desc.size = sizeof(DirectX::XMFLOAT4X4) * 3;
 		m_pWVPs.push_back(new ConstantBuffer(desc));
 
-		// [1] カメラ、時間 (水面用パラメータ)
+		// [1] カメラ、時間 (水面・大気パラメータ用)
 		desc.size = sizeof(DirectX::XMFLOAT4X4);
 		m_pWVPs.push_back(new ConstantBuffer(desc));
 
-		// [2] 変換行列 (スカイスフィア)
+		// [2] 変換行列 (スカイスフィア用)
 		desc.size = sizeof(DirectX::XMFLOAT4X4) * 3;
 		m_pWVPs.push_back(new ConstantBuffer(desc));
 	}
 
-
 	// ==========================================
-	// 3. ルートシグネチャの生成 (パイプラインの設定定義)
+	// 3. ルートシグネチャの生成
 	// ==========================================
-	{	// ルートシグネチャ生成 (地面)
+	{	// 地面
 		RootSignature::Parameter param[] = {
 			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_VERTEX},
 		};
@@ -154,8 +142,7 @@ HRESULT SceneField::Init()
 		desc.paramNum = _countof(param);
 		m_pGroundRS = new RootSignature(desc);
 	}
-
-	{	// ルートシグネチャ生成 (水面)
+	{	// 水面
 		RootSignature::Parameter param[] = {
 			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_VERTEX},
 			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, D3D12_SHADER_VISIBILITY_PIXEL},
@@ -165,11 +152,10 @@ HRESULT SceneField::Init()
 		desc.paramNum = _countof(param);
 		m_pWaterRS = new RootSignature(desc);
 	}
-
-	{ 	// ルートシグネチャ生成 (大気)
+	{ 	// 大気 (スカイスフィア)
 		RootSignature::Parameter param[] = {
 			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_VERTEX},
-			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_PIXEL},
+			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, D3D12_SHADER_VISIBILITY_PIXEL}, // 1に修正
 		};
 		RootSignature::Description desc = {};
 		desc.pParam = param;
@@ -177,9 +163,8 @@ HRESULT SceneField::Init()
 		m_pSkyRS = new RootSignature(desc);
 	}
 
-
 	// ==========================================
-	// 4. パイプラインの生成 (シェーダーのコンパイルと結合)
+	// 4. パイプラインの生成
 	// ==========================================
 	{
 		Pipeline::InputLayout layout[] = {
@@ -212,17 +197,16 @@ HRESULT SceneField::Init()
 		m_pPipelines.push_back(new Pipeline(desc));
 	}
 
-
 	// ==========================================
-	// 5. 深度バッファ(DSV)の生成 (レンダーターゲット関連)
+	// 5. 深度バッファ生成
 	// ==========================================
-	{	// DSV用のディスクリプター作成
+	{
 		DescriptorHeap::Description desc = {};
 		desc.heapType = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
 		desc.num = 1;
 		m_pDSVHeap = new DescriptorHeap(desc);
 	}
-	{	// 深度バッファ作成
+	{
 		DepthStencil::Description desc = {};
 		desc.width = 1280;
 		desc.height = 720;
@@ -233,24 +217,37 @@ HRESULT SceneField::Init()
 	return S_OK;
 }
 
-
 void SceneField::Uninit()
 {
+	// 作成したポインタをすべて解放する
 	delete m_pPlane;
+	delete m_pSphere;
 	delete m_pGroundRS;
+	delete m_pWaterRS;
+	delete m_pSkyRS;
 	delete m_pDSVHeap;
 	delete m_pDSV;
+	delete m_pShaderHeap;
+
+	for (auto p : m_pWVPs) {
+		delete p;
+	}
+	m_pWVPs.clear();
+
+	for (auto p : m_pPipelines) {
+		delete p;
+	}
+	m_pPipelines.clear();
 }
+
 void SceneField::Draw()
 {
-	// 描画準備
 	ID3D12GraphicsCommandList* pCmdList = GetCommandList();
 	D3D12_CPU_DESCRIPTOR_HANDLE hRTV[] = { GetRTV() };
 	auto hDSV = m_pDSV->GetHandleDSV().hCPU;
 	SetRenderTarget(_countof(hRTV), hRTV, hDSV);
 	m_pDSV->Clear();
 
-	// 表示領域の設定
 	float width = 1280.0f;
 	float height = 720.0f;
 	D3D12_VIEWPORT vp = { 0, 0, width, height, 0.0f, 1.0f };
@@ -260,12 +257,8 @@ void SceneField::Draw()
 
 	m_pShaderHeap->Bind();
 
-	// カメラ位置
-	static float rad = 0.0f;
-	rad += 0.005f;
+	// カメラ設定
 	DirectX::XMFLOAT3 camPos = { -10.0, 5.0f, -10 };
-
-	// 変換行列作成
 	DirectX::XMFLOAT4X4 fMat[3];
 	DirectX::XMMATRIX mat[3];
 	mat[0] = DirectX::XMMatrixTranslation(0.0f, 0.0f, 0.0f);
@@ -282,23 +275,45 @@ void SceneField::Draw()
 	}
 	m_pWVPs[0]->Write(&fMat);
 
-	// カメラ位置や時間の定数バッファ
+	// 時間・カメラ位置用バッファ (b1)
 	static float time = 0.0f;
 	DirectX::XMFLOAT4 param = {
 		camPos.x, camPos.y, camPos.z, time
 	};
-	time += 1.0f / 60.0f;
+	time += 2.0f / 60.0f;
 	m_pWVPs[1]->Write(&param);
 
-	// 地形
+	// ===================================
+	// 1. スカイスフィア (大気) の描画
+	// ===================================
+	// スカイスフィアを常にカメラの中心に移動させる
+	mat[0] = DirectX::XMMatrixTranslation(camPos.x, camPos.y, camPos.z);
+	DirectX::XMStoreFloat4x4(&fMat[0], DirectX::XMMatrixTranspose(mat[0]));
+	m_pWVPs[2]->Write(&fMat);
+
+	// 深度バッファをオフにして一番奥の背景として描画
+	SetRenderTarget(_countof(hRTV), hRTV);
+	m_pPipelines[2]->Bind();
+	D3D12_GPU_DESCRIPTOR_HANDLE hSky[] = {
+		m_pWVPs[2]->GetHandle().hGPU, // b0: 変換行列
+		m_pWVPs[1]->GetHandle().hGPU  // b1: カメラ位置と時間
+	};
+	m_pSkyRS->Bind(hSky, 2);
+	m_pSphere->Draw();
+
+	// ===================================
+	// 2. 地面・水面の描画
+	// ===================================
+	// 深度バッファを再び有効化
+	SetRenderTarget(_countof(hRTV), hRTV, hDSV);
+
 	m_pPipelines[0]->Bind();
-	D3D12_GPU_DESCRIPTOR_HANDLE handle[] = {
+	D3D12_GPU_DESCRIPTOR_HANDLE hGround[] = {
 		m_pWVPs[0]->GetHandle().hGPU
 	};
-	m_pGroundRS->Bind(handle, 1);
+	m_pGroundRS->Bind(hGround, 1);
 	m_pPlane->Draw();
 
-	// 水面
 	m_pPipelines[1]->Bind();
 	D3D12_GPU_DESCRIPTOR_HANDLE hWater[] = {
 		m_pWVPs[0]->GetHandle().hGPU,
@@ -306,21 +321,4 @@ void SceneField::Draw()
 	};
 	m_pWaterRS->Bind(hWater, 2);
 	m_pPlane->Draw();
-
-	// スカイスフィアをカメラ位置に移動させる行列の計算
-	mat[0] = DirectX::XMMatrixTranslation(camPos.x, camPos.y, camPos.z);
-	DirectX::XMStoreFloat4x4(&fMat[0], DirectX::XMMatrixTranspose(mat[0]));
-	m_pWVPs[2]->Write(&fMat); // fMat[3]の配列のはず。1,2にはビューとプロジェクション行列格納済み
-	// 深度バッファをオフにして、一番最初に描画
-	SetRenderTarget(_countof(hRTV), hRTV);
-	// 描画
-	m_pPipelines[2]->Bind();
-	D3D12_GPU_DESCRIPTOR_HANDLE hSky[] = {
-	m_pWVPs[2]->GetHandle().hGPU,
-	m_pWVPs[1]->GetHandle().hGPU, // 水面で使用してる、時間とカメラの定数バッファ
-	};
-	m_pSkyRS->Bind(hSky, 2);
-	m_pSphere->Draw();
-	// 深度バッファを有効にして、地面と水面を描画
-	SetRenderTarget(_countof(hRTV), hRTV, hDSV);
 }
