@@ -6,24 +6,27 @@
 #include <vector>
 #include <DirectXMath.h>
 
-const int MaxObjects = 2; // オブジェクト数
-const int MaxConstBufNum = 2; // 定数バッファ
+// ===== SceneField.cpp の冒頭部分 =====
+// ※こちらの定数も 2 から 3 に変更してください
+const int MaxObjects = 3; // オブジェクト数 (地面、水面、大気)
+const int MaxConstBufNum = 3; // 定数バッファ (地面・水面行列、パラメータ、大気行列)
 
-SceneField::SceneField()
-	: m_pPlane(nullptr),
-	  m_pShaderHeap(nullptr),
-	  m_pDSVHeap(nullptr),
-	  m_pDSV(nullptr),
-	  m_pGroundRS(nullptr),
-	  m_pWaterRS(nullptr)
-{
-	
 
-}
-
+// ===== Init関数全体 =====
 HRESULT SceneField::Init()
 {
-	// ～～ 頂点データ作成 ～～
+	// ==========================================
+	// 1. メッシュバッファの生成 (ジオメトリ)
+	// ==========================================
+
+	struct Vertex
+	{
+		float pos[3];
+		float normal[3];
+		float uv[2];
+	};
+
+	// ～～ 地面用頂点データ作成 ～～
 	const float maxSize = 20.0f;
 	const int GridNum = 500;
 	const float planeSpace = maxSize / (GridNum - 1);
@@ -112,24 +115,37 @@ HRESULT SceneField::Init()
 	}
 
 
+	// ==========================================
+	// 2. ディスクリプタヒープと定数バッファの生成
+	// ==========================================
 	{	// オブジェクト用ディスクリプターヒープ作成
 		DescriptorHeap::Description desc = {};
 		desc.heapType = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
 		desc.num = MaxConstBufNum;
 		m_pShaderHeap = new DescriptorHeap(desc);
 	}
-	{	// オブジェクト用の定数バッファ作成
+	{	// オブジェクト用の定数バッファ作成 (push_backを使用して安全に追加)
 		ConstantBuffer::Description desc = {};
 		desc.pHeap = m_pShaderHeap;
+
+		// [0] 変換行列 (地面・水面)
 		desc.size = sizeof(DirectX::XMFLOAT4X4) * 3;
-		m_pWVPs.resize(MaxConstBufNum);
-		// 変換行列
-		m_pWVPs[0] = new ConstantBuffer(desc);
-		// カメラ、時間(水面用)
+		m_pWVPs.push_back(new ConstantBuffer(desc));
+
+		// [1] カメラ、時間 (水面用パラメータ)
 		desc.size = sizeof(DirectX::XMFLOAT4X4);
-		m_pWVPs[1] = new ConstantBuffer(desc);
+		m_pWVPs.push_back(new ConstantBuffer(desc));
+
+		// [2] 変換行列 (スカイスフィア)
+		desc.size = sizeof(DirectX::XMFLOAT4X4) * 3;
+		m_pWVPs.push_back(new ConstantBuffer(desc));
 	}
-	{	// ルートシグネチャ生成
+
+
+	// ==========================================
+	// 3. ルートシグネチャの生成 (パイプラインの設定定義)
+	// ==========================================
+	{	// ルートシグネチャ生成 (地面)
 		RootSignature::Parameter param[] = {
 			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_VERTEX},
 		};
@@ -139,7 +155,7 @@ HRESULT SceneField::Init()
 		m_pGroundRS = new RootSignature(desc);
 	}
 
-	{	// ルートシグネチャ生成(水面)
+	{	// ルートシグネチャ生成 (水面)
 		RootSignature::Parameter param[] = {
 			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_VERTEX},
 			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 1, 1, D3D12_SHADER_VISIBILITY_PIXEL},
@@ -149,7 +165,23 @@ HRESULT SceneField::Init()
 		desc.paramNum = _countof(param);
 		m_pWaterRS = new RootSignature(desc);
 	}
-	{	// パイプライン生成
+
+	{ 	// ルートシグネチャ生成 (大気)
+		RootSignature::Parameter param[] = {
+			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_VERTEX},
+			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_PIXEL},
+		};
+		RootSignature::Description desc = {};
+		desc.pParam = param;
+		desc.paramNum = _countof(param);
+		m_pSkyRS = new RootSignature(desc);
+	}
+
+
+	// ==========================================
+	// 4. パイプラインの生成 (シェーダーのコンパイルと結合)
+	// ==========================================
+	{
 		Pipeline::InputLayout layout[] = {
 			{"POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT},
 			{"NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT},
@@ -160,37 +192,30 @@ HRESULT SceneField::Init()
 		desc.InputLayoutNum = _countof(layout);
 		desc.RenderTargetNum = 1;
 		desc.EnableDepth = TRUE;
-		m_pPipelines.resize(MaxObjects);
-		// フィールド
+
+		// [0] 地面
 		desc.pRootSignature = m_pGroundRS->Get();
 		desc.VSFile = L"VS_Ground.cso";
 		desc.PSFile = L"PS_Ground.cso";
-		m_pPipelines[0] = new Pipeline(desc);
+		m_pPipelines.push_back(new Pipeline(desc));
 
-		{ // 大気用のルートシグネチャ生成
-			RootSignature::Parameter param[] = {
-			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_VERTEX},
-			{D3D12_DESCRIPTOR_RANGE_TYPE_CBV, 0, 1, D3D12_SHADER_VISIBILITY_PIXEL},
-			};
-			RootSignature::Description desc = {};
-			desc.pParam = param;
-			desc.paramNum = _countof(param);
-			m_pSkyRS = new RootSignature(desc);
-		}
-
-		// 大気
-		desc.pRootSignature = m_pSkyRS->Get();
-		desc.VSFile = L"VS_Atomosphere.cso";
-		desc.PSFile = L"PS_Atomosphere.cso";
-		m_pPipelines[2] = new Pipeline(desc); // 地面、水面でパイプラインを作成しているため、
-		// 大気のインデックスは２
-
-		// 水面
+		// [1] 水面
 		desc.pRootSignature = m_pWaterRS->Get();
 		desc.VSFile = L"VS_Water.cso";
 		desc.PSFile = L"PS_Water.cso";
-		m_pPipelines[1] = new Pipeline(desc);
+		m_pPipelines.push_back(new Pipeline(desc));
+
+		// [2] 大気
+		desc.pRootSignature = m_pSkyRS->Get();
+		desc.VSFile = L"VS_Atomosphere.cso";
+		desc.PSFile = L"PS_Atomosphere.cso";
+		m_pPipelines.push_back(new Pipeline(desc));
 	}
+
+
+	// ==========================================
+	// 5. 深度バッファ(DSV)の生成 (レンダーターゲット関連)
+	// ==========================================
 	{	// DSV用のディスクリプター作成
 		DescriptorHeap::Description desc = {};
 		desc.heapType = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
@@ -204,8 +229,11 @@ HRESULT SceneField::Init()
 		desc.pDSVHeap = m_pDSVHeap;
 		m_pDSV = new DepthStencil(desc);
 	}
+
 	return S_OK;
 }
+
+
 void SceneField::Uninit()
 {
 	delete m_pPlane;
